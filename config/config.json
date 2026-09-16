@@ -1,0 +1,68 @@
+{
+  "ems_esp": {
+    "base_url": "http://ems-esp.local",
+    "access_token": "",
+    "verify_tls": true,
+    "timeout_seconds": 5,
+    "poll_interval_seconds": 10,
+    "stale_after_seconds": 60,
+    "endpoints": {
+      "boiler": "/api/boiler",
+      "thermostat": "/api/thermostat",
+      "heatpump": "/api/heatpump",
+      "system": "/api/system"
+    }
+  },
+  "dbus": {
+    "service_name": "com.victronenergy.heatpump.emsesp",
+    "device_instance": 280,
+    "product_id": 65535,
+    "product_name": "Bosch Compress 5800i via EMS-ESP",
+    "custom_name": "Bosch 5800i",
+    "connection": "EMS-ESP REST"
+  },
+  "mapping": {
+    "/Temperatures/Outside": [
+      "boiler.outdoortemp",
+      "heatpump.outdoortemp",
+      "thermostat.outdoortemp"
+    ],
+    "/Temperatures/Flow": [
+      "boiler.curflowtemp",
+      "boiler.flowtemp",
+      "heatpump.flowtemp"
+    ],
+    "/Temperatures/Return": [
+      "boiler.returntemp",
+      "heatpump.returntemp"
+    ],
+    "/Temperatures/Dhw": [
+      "boiler.dhw.curtemp",
+      "boiler.dhwtemp",
+      "boiler.wwtemp"
+    ],
+    "/HeatPump/Power": [
+      "heatpump.power",
+      "boiler.hppower"
+    ],
+    "/HeatPump/Cop": [
+      "heatpump.cop",
+      "boiler.cop"
+    ],
+    "/HeatPump/CompressorActive": [
+      "heatpump.compressor",
+      "boiler.compressor"
+    ],
+    "/HeatPump/Status": [
+      "heatpump.status",
+      "boiler.status"
+    ]
+  },
+  "mode": "dummy",
+  "dummy": {
+    "scenario_duration_seconds": 1800,
+    "start_time_offset_seconds": 0,
+    "outside_temperature_base_c": 8.0,
+    "outside_temperature_amplitude_c": 4.0
+  }
+}

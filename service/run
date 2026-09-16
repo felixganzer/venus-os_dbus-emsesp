@@ -1,0 +1,6 @@
+#!/bin/sh
+exec 2>&1
+export EMS_ESP_CONFIG=/data/venus-os_dbus-emsesp/config/config.json
+export LOG_LEVEL=INFO
+cd /data/venus-os_dbus-emsesp/dbus_emsesp
+exec python3 -u main.py
