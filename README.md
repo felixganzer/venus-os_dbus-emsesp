@@ -109,27 +109,10 @@ Beispielausgabe:
 
 ## Installation auf Venus OS
 
-Projekt nach `/data` kopieren:
+# Auf Venus OS / Raspberry anmelden
+ssh root@IP-DEINES-RASPBERRY
 
-```bash
-cd /data
-
-git clone https://github.com/USERNAME/venus-os_dbus-emsesp.git
-```
-
-Installation ausführen:
-
-```bash
-cd venus-os_dbus-emsesp
-
-sh install.sh
-```
-
-Status prüfen:
-
-```bash
-sv status /service/dbus-emsesp
-```
+wget -O - https://raw.githubusercontent.com/felixganzer/venus-os_dbus-emsesp/main/setup.sh | sh
 
 ---
 
