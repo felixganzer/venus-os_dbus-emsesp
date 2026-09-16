@@ -56,6 +56,16 @@
     "/HeatPump/Status": [
       "heatpump.status",
       "boiler.status"
+    ],
+    "/HeatPump/AuxHeaterPower": [
+      "boiler.auxheaterpower", 
+      "boiler.eheaterpower", 
+      "heatpump.auxheaterpower"
+    ],
+    "/HeatPump/AuxHeaterActive": [
+      "boiler.auxheateractive", 
+      "boiler.eheateractive", 
+      "heatpump.auxheateractive"
     ]
   },
   "mode": "dummy",
