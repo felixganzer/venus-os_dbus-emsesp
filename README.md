@@ -1,182 +1,36 @@
-# Venus OS EMS-ESP Bridge
+# Venus OS EMS-ESP: drei virtuelle Wärmepumpengeräte
 
-Ein nativer Venus-OS D-Bus Treiber zur Integration einer Bosch Wärmepumpe über EMS-ESP.
+Ein Prozess fragt EMS-ESP einmal ab und veröffentlicht drei getrennte `com.victronenergy.heatpump`-Dienste:
 
-Der Treiber liest Daten über die REST-API von EMS-ESP und veröffentlicht diese als D-Bus-Service auf Venus OS.
+- Bosch 5800i Heizung, DeviceInstance 280
+- Bosch 5800i Warmwasser, DeviceInstance 281
+- Bosch 5800i Heizstab, DeviceInstance 282
 
-Aktuell unterstützt:
+Die Leistungen überlappen nicht. Der Heizstab wird von der Gesamtleistung abgezogen, bevor der verbleibende Verdichteranteil Heizung oder Warmwasser zugeordnet wird.
 
-- Außentemperatur
-- Vorlauftemperatur
-- Rücklauftemperatur
-- Warmwassertemperatur
-- Wärmepumpenstatus
-- Verdichterstatus
-- Leistungsaufnahme
-- COP
+## Installation
 
-Zusätzlich ist ein vollständiger Dummy-Modus vorhanden, um die Entwicklung ohne EMS-ESP Hardware durchführen zu können.
-
----
-
-## Features
-
-✅ REST-Anbindung an EMS-ESP
-
-✅ Native Venus OS D-Bus Integration
-
-✅ Dummy-Datenmodus
-
-✅ Automatischer Dienststart über daemontools
-
-✅ Konfigurierbares Mapping
-
-✅ Diagnosepfade
-
-✅ Raspberry Pi / Venus OS kompatibel
-
----
-
-## Projektstruktur
-
-```text
-venus-os_dbus-emsesp
-│
-├── config
-│   └── config.json
-│
-├── dbus_emsesp
-│   ├── main.py
-│   ├── emsesp.py
-│   ├── dummy.py
-│   └── mapping.py
-│
-├── service
-│   └── run
-│
-├── install.sh
-├── uninstall.sh
-├── test_dummy.py
-└── README.md
+```sh
+cd /data
+git clone https://github.com/felixganzer/venus-os_dbus-emsesp.git
+cd venus-os_dbus-emsesp
+chmod +x *.sh service/run test_three_devices.py
+sh install.sh
 ```
 
----
+## Prüfen
 
-## Dummy-Modus
-
-Standardmäßig läuft das Projekt im Dummy-Modus.
-
-In der Datei:
-
-```json
-{
-  "mode": "dummy"
-}
+```sh
+python3 test_three_devices.py
+dbus -y com.victronenergy.heatpump.emsesp_heating
+dbus -y com.victronenergy.heatpump.emsesp_dhw
+dbus -y com.victronenergy.heatpump.emsesp_aux
 ```
 
-werden realistische Wärmepumpendaten simuliert.
+## Dummy und REST
 
-Folgende Betriebszustände werden automatisch durchlaufen:
+Standard ist `"mode": "dummy"`. Für EMS-ESP in `config/config.json` auf `"rest"` wechseln, URL und optional JWT setzen und danach den Dienst neu starten.
 
-- Defrost
-- Heating
-- DHW
-- Standby
+## Zuordnungsregel
 
----
-
-## Dummy-Modus testen
-
-Ohne D-Bus:
-
-```bash
-python3 test_dummy.py
-```
-
-Beispielausgabe:
-
-```json
-{
-  "heatpump": {
-    "status": "heating",
-    "power": 1850,
-    "cop": 4.2
-  }
-}
-```
-
----
-
-## Installation auf Venus OS
-
-# Auf Venus OS / Raspberry anmelden
-ssh root@IP-DEINES-RASPBERRY
-
-wget -O - https://raw.githubusercontent.com/felixganzer/venus-os_dbus-emsesp/main/setup.sh | sh
-
----
-
-## D-Bus prüfen
-
-Verfügbare Werte:
-
-```bash
-dbus -y com.victronenergy.heatpump.emsesp
-```
-
-Beispielsweise:
-
-```text
-/Temperatures/Outside
-/Temperatures/Flow
-/Temperatures/Return
-/Temperatures/Dhw
-
-/HeatPump/Power
-/HeatPump/Cop
-/HeatPump/Status
-```
-
----
-
-## Wechsel auf EMS-ESP
-
-Datei:
-
-```json
-config/config.json
-```
-
-anpassen:
-
-```json
-{
-  "mode": "rest",
-
-  "ems_esp": {
-    "base_url": "http://192.168.178.50",
-    "access_token": ""
-  }
-}
-```
-
-Danach Dienst neu starten:
-
-```bash
-sv restart /service/dbus-emsesp
-```
-
----
-
-## Unterstützte Hardware
-
-Getestet für:
-
-- Bosch Compress 5800i
-- EMS-ESP v3.x
-
----
-
-## Lizenz
-
-MIT License
+Warmwasser-Modi werden dem Warmwassergerät zugeordnet. Alle übrigen Verdichteranteile, einschließlich Abtauen und unbekannter Zustände, landen bei Heizung. Dadurch entspricht die Summe der drei Geräte stets der gemeldeten Gesamtleistung.

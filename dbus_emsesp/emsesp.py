@@ -16,10 +16,10 @@ class EmsEspClient:
         self.verify_tls = bool(config.get("verify_tls", True))
         self.endpoints = config.get("endpoints", {})
 
-    def _request_json(self, path):
+    def _get_json(self, path):
         request = urllib.request.Request(
             self.base_url + path,
-            headers={"Accept": "application/json", "User-Agent": "venus-os-dbus-emsesp/0.1.0"},
+            headers={"Accept": "application/json", "User-Agent": "venus-os-dbus-emsesp/0.4.0"},
         )
         if self.token:
             request.add_header("Authorization", "Bearer " + self.token)
@@ -34,13 +34,12 @@ class EmsEspClient:
             raise EmsEspError("GET {} failed: {}".format(path, exc)) from exc
 
     def read_all(self):
-        result = {}
-        errors = {}
+        data, errors = {}, {}
         for name, path in self.endpoints.items():
             try:
-                result[name] = self._request_json(path)
+                data[name] = self._get_json(path)
             except EmsEspError as exc:
                 errors[name] = str(exc)
-        if not result:
+        if not data:
             raise EmsEspError("all EMS-ESP endpoints failed: {}".format(errors))
-        return result, errors
+        return data, errors
