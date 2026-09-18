@@ -14,11 +14,39 @@
       "system": "/api/system"
     }
   },
+  "simulation_control": {
+    "enabled_at_start": true
+  },
   "dummy": {
-    "scenario_duration_seconds": 1800,
-    "start_time_offset_seconds": 0,
-    "power_variation_fraction": 0.18,
-    "variation_seed": 5800
+    "thermal_time_constant_seconds": 90,
+    "initial_flow_temperature_c": 28.0,
+    "initial_return_temperature_c": 26.0,
+    "initial_dhw_temperature_c": 48.0
+  },
+  "telemetry_mapping": {
+    "outside_temperature_c": [
+      "heatpump.outdoortemp",
+      "boiler.outdoortemp"
+    ],
+    "flow_temperature_c": [
+      "heatpump.flowtemp",
+      "boiler.curflowtemp"
+    ],
+    "return_temperature_c": [
+      "heatpump.returntemp",
+      "boiler.returntemp"
+    ],
+    "dhw_temperature_c": [
+      "heatpump.dhwtemp",
+      "boiler.dhwtemp"
+    ],
+    "cop": [
+      "heatpump.cop",
+      "boiler.cop"
+    ],
+    "status_code": [
+      "heatpump.statuscode"
+    ]
   },
   "electrical": {
     "voltage_v": 230.0,
