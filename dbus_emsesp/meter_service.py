@@ -7,7 +7,18 @@ from vedbus import VeDbusService
 
 PHASES = ("L1", "L2", "L3")
 SIMULATION_CHANNEL = "/SwitchableOutput/Simulation"
-TELEMETRY_GROUP = "Bosch 5800i Status"
+
+# Config key -> D-Bus key -> telemetry dictionary key
+TELEMETRY_BINDINGS = (
+    ("operating_status", "OperatingStatus", "status_code"),
+    ("outside_temperature", "OutsideTemperature", "outside_temperature_c"),
+    ("flow_temperature", "FlowTemperature", "flow_temperature_c"),
+    ("return_temperature", "ReturnTemperature", "return_temperature_c"),
+    ("dhw_temperature", "DhwTemperature", "dhw_temperature_c"),
+    ("cop", "Cop", "cop"),
+    ("compressor", "Compressor", "compressor_active"),
+    ("aux_heater", "AuxHeater", "aux_heater_active"),
+)
 
 
 def fmt(unit, decimals=1):
@@ -30,12 +41,17 @@ class HeatPumpMeterService:
         category,
         simulation_callback=None,
         simulation_initial_state=True,
+        generic_input_defaults=None,
+        telemetry_display=None,
     ):
         self.category = category
         self.voltage = float(electrical.get("voltage_v", 230.0))
         self.update_index = 0
         self.simulation_callback = simulation_callback
         self.has_telemetry_panel = category == "heating"
+        self.generic_input_defaults = generic_input_defaults or {}
+        self.telemetry_display = telemetry_display or {}
+        self.telemetry_paths = {}
 
         self.dbus_connection = (
             dbus.SessionBus()
@@ -90,9 +106,8 @@ class HeatPumpMeterService:
         if self.simulation_callback is not None:
             self._add_simulation_switch(bool(simulation_initial_state))
 
-        # Read-only information panel appears once, under the heating service.
         if self.has_telemetry_panel:
-            self._add_telemetry_inputs()
+            self._add_telemetry_inputs_from_config()
 
         self.service.register()
 
@@ -119,72 +134,73 @@ class HeatPumpMeterService:
         add(SIMULATION_CHANNEL + "/Settings/Function", 2)
         add(SIMULATION_CHANNEL + "/Settings/ValidFunctions", 4)
 
-    def _add_generic_input(
-        self,
-        key,
-        name,
-        input_type,
-        initial=0,
-        unit=None,
-        decimals=1,
-        labels=None,
-        minimum=None,
-        maximum=None,
-    ):
+    @staticmethod
+    def _int_setting(settings, key, default):
+        try:
+            return int(settings.get(key, default))
+        except (TypeError, ValueError):
+            return int(default)
+
+    def _add_generic_input(self, dbus_key, settings):
         add = self.service.add_path
-        base = "/GenericInput/{}".format(key)
+        base = "/GenericInput/{}".format(dbus_key)
+        input_type = self._int_setting(settings, "type", 1)
+        if input_type not in (0, 1, 2, 3):
+            raise ValueError(
+                "Invalid GenericInput type {} for {}".format(input_type, dbus_key)
+            )
+
+        name = str(settings.get("name", dbus_key))
+        group = str(
+            settings.get(
+                "group",
+                self.generic_input_defaults.get("group", "Bosch 5800i Status"),
+            )
+        )
+        show_ui_input = self._int_setting(
+            settings,
+            "show_ui_input",
+            self.generic_input_defaults.get("show_ui_input", 6),
+        )
+        decimals = self._int_setting(settings, "decimals", 0 if input_type == 0 else 1)
+        initial = settings.get("initial", 0)
+
         add(base + "/Value", initial)
         add(base + "/Status", 0x00)
         add(base + "/Name", name)
-        add(base + "/Settings/Group", TELEMETRY_GROUP)
+        add(base + "/Settings/Group", group)
         add(base + "/Settings/CustomName", name)
-        add(base + "/Settings/ShowUIInput", 1)
+        add(base + "/Settings/ShowUIInput", show_ui_input)
         add(base + "/Settings/Type", input_type)
         add(base + "/Settings/ValidTypes", 1 << input_type)
         add(base + "/Settings/PrimaryLabel", name)
-        if unit is not None:
-            add(base + "/Settings/Unit", unit)
-        if labels is not None:
-            add(base + "/Settings/Labels", json.dumps(labels, ensure_ascii=False))
-        if minimum is not None:
-            add(base + "/Settings/RangeMin", minimum)
-        if maximum is not None:
-            add(base + "/Settings/RangeMax", maximum)
         add(base + "/Settings/Decimals", decimals)
 
-    def _add_telemetry_inputs(self):
-        # Type 3 is the temperature indicator; type 0 is a discrete indicator;
-        # type 1 is a numeric value without a range.
-        self._add_generic_input(
-            "OperatingStatus",
-            "Betriebsstatus",
-            0,
-            labels=["Standby", "Heizen", "Warmwasser", "Abtauen"],
-            decimals=0,
-        )
-        self._add_generic_input(
-            "OutsideTemperature", "Außentemperatur", 3, unit="/Temperature",
-            minimum=-25.0, maximum=45.0
-        )
-        self._add_generic_input(
-            "FlowTemperature", "Vorlauftemperatur", 3, unit="/Temperature",
-            minimum=0.0, maximum=70.0
-        )
-        self._add_generic_input(
-            "ReturnTemperature", "Rücklauftemperatur", 3, unit="/Temperature",
-            minimum=0.0, maximum=70.0
-        )
-        self._add_generic_input(
-            "DhwTemperature", "Warmwassertemperatur", 3, unit="/Temperature",
-            minimum=0.0, maximum=70.0
-        )
-        self._add_generic_input("Cop", "COP", 1, unit="", decimals=2)
-        self._add_generic_input(
-            "Compressor", "Verdichter", 0, labels=["/off", "/on"], decimals=0
-        )
-        self._add_generic_input(
-            "AuxHeater", "Heizstab", 0, labels=["/off", "/on"], decimals=0
-        )
+        if "unit" in settings:
+            add(base + "/Settings/Unit", str(settings["unit"]))
+        if "labels" in settings:
+            labels = settings["labels"]
+            if not isinstance(labels, list):
+                raise ValueError("labels for {} must be a list".format(dbus_key))
+            add(base + "/Settings/Labels", json.dumps(labels, ensure_ascii=False))
+        if "range_min" in settings:
+            add(base + "/Settings/RangeMin", float(settings["range_min"]))
+        if "range_max" in settings:
+            add(base + "/Settings/RangeMax", float(settings["range_max"]))
+
+        self.telemetry_paths[dbus_key] = base + "/Value"
+
+    def _add_telemetry_inputs_from_config(self):
+        for config_key, dbus_key, _telemetry_key in TELEMETRY_BINDINGS:
+            settings = self.telemetry_display.get(config_key)
+            if settings is None:
+                continue
+            if not isinstance(settings, dict):
+                raise ValueError(
+                    "telemetry_display.{} must be an object".format(config_key)
+                )
+            if settings.get("enabled", True):
+                self._add_generic_input(dbus_key, settings)
 
     def _handle_simulation_state(self, _path, value):
         try:
@@ -201,18 +217,14 @@ class HeatPumpMeterService:
     def update_telemetry(self, telemetry):
         if not self.has_telemetry_panel:
             return
-        values = {
-            "OperatingStatus": telemetry.get("status_code", 0),
-            "OutsideTemperature": telemetry.get("outside_temperature_c"),
-            "FlowTemperature": telemetry.get("flow_temperature_c"),
-            "ReturnTemperature": telemetry.get("return_temperature_c"),
-            "DhwTemperature": telemetry.get("dhw_temperature_c"),
-            "Cop": telemetry.get("cop"),
-            "Compressor": int(bool(telemetry.get("compressor_active", 0))),
-            "AuxHeater": int(bool(telemetry.get("aux_heater_active", 0))),
-        }
-        for key, value in values.items():
-            self.service["/GenericInput/{}/Value".format(key)] = value
+        for _config_key, dbus_key, telemetry_key in TELEMETRY_BINDINGS:
+            path = self.telemetry_paths.get(dbus_key)
+            if path is None:
+                continue
+            value = telemetry.get(telemetry_key)
+            if telemetry_key in ("compressor_active", "aux_heater_active"):
+                value = int(bool(value))
+            self.service[path] = value
 
     def update(self, values, connected, mode, error_code=0):
         total_power = max(0.0, float(values["power_w"] or 0.0))

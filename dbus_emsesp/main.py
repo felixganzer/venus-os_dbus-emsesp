@@ -73,6 +73,16 @@ class Application:
                 category,
                 simulation_callback=callback,
                 simulation_initial_state=self.simulation_enabled,
+
+                generic_input_defaults=config.get(
+                    "generic_input_defaults",
+                    {},
+                ),
+
+                telemetry_display=config.get(
+                    "telemetry_display",
+                    {},
+                ),
             )
 
     def set_simulation_enabled(self, enabled):

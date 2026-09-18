@@ -48,6 +48,85 @@
       "heatpump.statuscode"
     ]
   },
+  "generic_input_defaults": {
+    "show_ui_input": 6,
+    "group": "Bosch 5800i Status"
+  },
+  "telemetry_display": {
+    "operating_status": {
+      "name": "Betriebsstatus",
+      "type": 0,
+      "labels": [
+        "Standby",
+        "Heizen",
+        "Warmwasser",
+        "Abtauen"
+      ]
+    },
+
+    "outside_temperature": {
+      "name": "Außentemperatur",
+      "type": 3,
+      "unit": "/Temperature",
+      "range_min": -25,
+      "range_max": 45,
+      "decimals": 1
+    },
+
+    "flow_temperature": {
+      "name": "Vorlauftemperatur",
+      "type": 3,
+      "unit": "/Temperature",
+      "range_min": 15,
+      "range_max": 70,
+      "decimals": 1
+    },
+
+    "return_temperature": {
+      "name": "Rücklauftemperatur",
+      "type": 3,
+      "unit": "/Temperature",
+      "range_min": 15,
+      "range_max": 70,
+      "decimals": 1
+    },
+
+    "dhw_temperature": {
+      "name": "Warmwasser",
+      "type": 3,
+      "unit": "/Temperature",
+      "range_min": 20,
+      "range_max": 70,
+      "decimals": 1
+    },
+
+    "cop": {
+      "name": "COP",
+      "type": 2,
+      "unit": "",
+      "range_min": 0,
+      "range_max": 6,
+      "decimals": 2
+    },
+
+    "compressor": {
+      "name": "Verdichter",
+      "type": 0,
+      "labels": [
+        "/off",
+        "/on"
+      ]
+    },
+
+    "aux_heater": {
+      "name": "Heizstab",
+      "type": 0,
+      "labels": [
+        "/off",
+        "/on"
+      ]
+    }
+  },
   "electrical": {
     "voltage_v": 230.0,
     "position": 1
