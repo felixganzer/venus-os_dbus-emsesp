@@ -15,14 +15,13 @@
     }
   },
   "dummy": {
-    "scenario_duration_seconds": 600,
+    "scenario_duration_seconds": 1800,
     "start_time_offset_seconds": 0,
-    "outside_temperature_base_c": 8.0,
-    "outside_temperature_amplitude_c": 4.0
+    "power_variation_fraction": 0.18,
+    "variation_seed": 5800
   },
   "electrical": {
     "voltage_v": 230.0,
-    "phase_setting": 1,
     "position": 1
   },
   "devices": {
