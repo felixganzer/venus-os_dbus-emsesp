@@ -4,163 +4,118 @@ import time
 
 
 class DummyEmsEspClient:
-    """Stateful thermal simulation for display and VRM development."""
-
-    STATUS_CODES = {
-        "standby": 0,
-        "heating": 1,
-        "dhw": 2,
-        "defrost": 3,
-    }
-
     def __init__(self, config=None, clock=None):
         self.config = config or {}
         self.clock = clock or time.time
         now = self.clock()
-        self.started_at = now - float(
-            self.config.get("start_time_offset_seconds", 0)
-        )
+        self.started_at = now - float(self.config.get("start_time_offset_seconds", 0))
         self.last_update = now
-        self.duration = max(
-            300.0,
-            float(self.config.get("scenario_duration_seconds", 1800)),
-        )
-        self.variation = max(
-            0.0,
-            min(0.45, float(self.config.get("power_variation_fraction", 0.18))),
-        )
+        self.duration = max(300.0, float(self.config.get("scenario_duration_seconds", 1800)))
+        self.variation = float(self.config.get("power_variation_fraction", 0.18))
         self.seed = int(self.config.get("variation_seed", 5800))
-        self.thermal_time_constant = max(
-            20.0,
-            float(self.config.get("thermal_time_constant_seconds", 90)),
-        )
-
-        self.flow_temp = float(self.config.get("initial_flow_temperature_c", 28.0))
-        self.return_temp = float(self.config.get("initial_return_temperature_c", 26.0))
-        self.dhw_temp = float(self.config.get("initial_dhw_temperature_c", 48.0))
+        self.flow = 28.0
+        self.ret = 26.0
+        self.dhw = 48.0
+        self.energy_heat = 0.0
+        self.energy_dhw = 0.0
+        self.energy_aux = 0.0
+        self.thermal_heat = 0.0
+        self.thermal_dhw = 0.0
+        self.runtime_heat = 0.0
+        self.runtime_dhw = 0.0
+        self.starts_total = 0
+        self.starts_heat = 0
+        self.starts_dhw = 0
+        self.last_comp_on = False
+        self.last_mode = "standby"
 
     @staticmethod
-    def _clamp(value, minimum, maximum):
-        return max(minimum, min(maximum, value))
-
-    @staticmethod
-    def _approach(current, target, elapsed, time_constant):
-        if elapsed <= 0.0:
-            return current
-        factor = 1.0 - math.exp(-elapsed / time_constant)
-        return current + (target - current) * factor
+    def _approach(current, target, elapsed, tau):
+        return current + (target - current) * (1.0 - math.exp(-elapsed / tau))
 
     def _minute_factor(self, elapsed):
-        """New deterministic load target each minute with smooth interpolation."""
         minute = int(elapsed // 60)
-        progress = (elapsed % 60) / 60.0
-        current = random.Random(self.seed + minute).uniform(-1.0, 1.0)
-        following = random.Random(self.seed + minute + 1).uniform(-1.0, 1.0)
-        interpolated = current + (following - current) * progress
-        ripple = 0.12 * math.sin(elapsed / 11.0)
-        return 1.0 + self.variation * (interpolated + ripple)
+        p = (elapsed % 60) / 60.0
+        a = random.Random(self.seed + minute).uniform(-1.0, 1.0)
+        b = random.Random(self.seed + minute + 1).uniform(-1.0, 1.0)
+        return 1.0 + self.variation * (a + (b - a) * p + 0.12 * math.sin(elapsed / 11.0))
 
     def _state(self, elapsed):
-        ratio = (elapsed % self.duration) / self.duration
-        if ratio < 0.30:
-            return "heating", 1850.0, 0.0
-        if ratio < 0.45:
-            return "heating", 2100.0, 3000.0
-        if ratio < 0.70:
-            return "dhw", 2250.0, 0.0
-        if ratio < 0.82:
-            return "dhw", 2450.0, 3000.0
-        if ratio < 0.94:
-            return "defrost", 2600.0, 0.0
+        r = (elapsed % self.duration) / self.duration
+        if r < 0.30: return "heating", 1850.0, 0.0
+        if r < 0.45: return "heating", 2100.0, 3000.0
+        if r < 0.70: return "dhw", 2250.0, 0.0
+        if r < 0.82: return "dhw", 2450.0, 3000.0
+        if r < 0.94: return "defrost", 2600.0, 0.0
         return "standby", 0.0, 0.0
-
-    def _outside_temperature(self, elapsed):
-        base = float(self.config.get("outside_temperature_base_c", 8.0))
-        amplitude = float(self.config.get("outside_temperature_amplitude_c", 4.0))
-        slow_cycle = math.sin(2.0 * math.pi * elapsed / max(self.duration * 2.0, 3600.0))
-        weather_wave = 0.45 * math.sin(elapsed / 173.0)
-        return base + amplitude * slow_cycle + weather_wave
-
-    def _thermal_targets(self, mode, outside, elapsed):
-        if mode == "heating":
-            # Colder outside air raises the simulated heating-curve target.
-            flow_target = self._clamp(31.0 + (10.0 - outside) * 0.38, 29.0, 42.0)
-            return_target = flow_target - (4.0 + 0.5 * math.sin(elapsed / 47.0))
-            dhw_target = 46.5
-        elif mode == "dhw":
-            flow_target = 52.0 + 1.2 * math.sin(elapsed / 41.0)
-            return_target = flow_target - 5.2
-            dhw_target = 53.0
-        elif mode == "defrost":
-            flow_target = 23.5
-            return_target = 27.0
-            dhw_target = 48.0
-        else:
-            flow_target = 26.0
-            return_target = 25.0
-            dhw_target = 47.0
-        return flow_target, return_target, dhw_target
-
-    def _cop(self, mode, outside, flow, aux_active):
-        if mode == "standby":
-            return 0.0
-        if mode == "defrost":
-            return 1.2
-        lift = max(8.0, flow - outside)
-        base = 5.3 - 0.055 * lift
-        if mode == "dhw":
-            base -= 0.45
-        if aux_active:
-            base -= 0.65
-        return round(self._clamp(base, 1.2, 5.2), 2)
 
     def read_all(self):
         now = self.clock()
         elapsed = now - self.started_at
-        delta = max(0.0, min(now - self.last_update, 60.0))
+        dt = max(0.0, min(now - self.last_update, 60.0))
         self.last_update = now
+        mode, comp_base, aux_base = self._state(elapsed)
+        comp = max(0.0, comp_base * self._minute_factor(elapsed))
+        aux = max(0.0, aux_base * (1.0 + 0.025 * math.sin(elapsed / 19.0)))
+        outside = 8.0 + 4.0 * math.sin(2.0 * math.pi * elapsed / max(3600.0, self.duration * 2.0))
 
-        mode, compressor_base, aux_base = self._state(elapsed)
-        compressor = max(0.0, compressor_base * self._minute_factor(elapsed))
-        aux_factor = 1.0 + 0.025 * math.sin(elapsed / 19.0)
-        aux = max(0.0, aux_base * aux_factor)
-        total = compressor + aux
+        if mode == "heating":
+            flow_target = max(29.0, min(42.0, 31.0 + (10.0 - outside) * 0.38))
+            ret_target, dhw_target = flow_target - 4.5, 46.5
+        elif mode == "dhw":
+            flow_target, ret_target, dhw_target = 52.0, 46.8, 53.0
+        elif mode == "defrost":
+            flow_target, ret_target, dhw_target = 23.5, 27.0, 48.0
+        else:
+            flow_target, ret_target, dhw_target = 26.0, 25.0, 47.0
+        self.flow = self._approach(self.flow, flow_target, dt, 90.0)
+        self.ret = self._approach(self.ret, ret_target, dt, 105.0)
+        self.dhw = self._approach(self.dhw, dhw_target, dt, 225.0)
 
-        outside = self._outside_temperature(elapsed)
-        flow_target, return_target, dhw_target = self._thermal_targets(
-            mode, outside, elapsed
-        )
-        self.flow_temp = self._approach(
-            self.flow_temp, flow_target, delta, self.thermal_time_constant
-        )
-        self.return_temp = self._approach(
-            self.return_temp, return_target, delta, self.thermal_time_constant * 1.15
-        )
-        self.dhw_temp = self._approach(
-            self.dhw_temp, dhw_target, delta, self.thermal_time_constant * 2.5
-        )
-        cop = self._cop(mode, outside, self.flow_temp, aux > 0.0)
+        lift = max(8.0, self.flow - outside)
+        cop = 0.0 if mode == "standby" else (1.2 if mode == "defrost" else max(1.2, min(5.2, 5.3 - 0.055 * lift - (0.45 if mode == "dhw" else 0.0) - (0.65 if aux else 0.0))))
+        thermal_w = comp * cop
+        if mode in ("heating", "defrost"):
+            self.energy_heat += comp * dt / 3600000.0
+            self.thermal_heat += thermal_w * dt / 3600000.0
+            self.runtime_heat += dt / 60.0
+        elif mode == "dhw":
+            self.energy_dhw += comp * dt / 3600000.0
+            self.thermal_dhw += thermal_w * dt / 3600000.0
+            self.runtime_dhw += dt / 60.0
+        self.energy_aux += aux * dt / 3600000.0
 
-        return {
-            "heatpump": {
-                "power": round(total, 1),
-                "status": mode,
-                "statuscode": self.STATUS_CODES[mode],
-                "compressor": int(compressor > 0.0),
-                "auxheaterpower": round(aux, 1),
-                "auxheateractive": int(aux > 0.0),
-                "outdoortemp": round(outside, 1),
-                "flowtemp": round(self.flow_temp, 1),
-                "returntemp": round(self.return_temp, 1),
-                "dhwtemp": round(self.dhw_temp, 1),
-                "cop": cop,
-            },
-            "boiler": {
-                "status": mode,
-                "outdoortemp": round(outside, 1),
-                "curflowtemp": round(self.flow_temp, 1),
-                "returntemp": round(self.return_temp, 1),
-                "dhwtemp": round(self.dhw_temp, 1),
-            },
-            "system": {"connected": True, "mode": "dummy"},
-        }, {}
+        comp_on = comp > 0.0
+        if comp_on and not self.last_comp_on:
+            self.starts_total += 1
+            if mode == "dhw": self.starts_dhw += 1
+            else: self.starts_heat += 1
+        self.last_comp_on = comp_on
+        self.last_mode = mode
+
+        activity = {"heating":"heating", "dhw":"dhw", "defrost":"defrost", "standby":"none"}[mode]
+        boiler = {
+            "outdoortemp": round(outside, 1), "curflowtemp": round(self.flow, 1),
+            "rettemp": round(self.ret, 1), "hptc0": round(self.ret, 1),
+            "hptc1": round(self.flow, 1), "hpcurrpower": round(comp, 1),
+            "hppower": round(thermal_w / 1000.0, 2), "hpcompon": comp_on,
+            "hpactivity": activity, "heatingactive": mode == "heating",
+            "tapwateractive": mode == "dhw", "hpcompspd": round(min(100.0, comp / 30.0), 1),
+            "auxheaterlevel": round(aux / 90.0, 1), "syspress": 1.7,
+            "pc0flow": 850 if comp_on else 0,
+            "metertotal": round(self.energy_heat + self.energy_dhw + self.energy_aux, 3),
+            "metercomp": round(self.energy_heat + self.energy_dhw, 3),
+            "metereheat": round(self.energy_aux, 3), "meterheat": round(self.energy_heat, 3),
+            "nrgtotal": round(self.thermal_heat + self.thermal_dhw, 3),
+            "nrgheat": round(self.thermal_heat, 3),
+            "uptimetotal": round(elapsed / 60.0, 1),
+            "uptimecontrol": round(self.runtime_heat + self.runtime_dhw, 1),
+            "uptimecompheating": round(self.runtime_heat, 1),
+            "totalcompstarts": self.starts_total, "heatingstarts": self.starts_heat,
+            "dhw": {
+                "curtemp2": round(self.dhw, 1), "meter": round(self.energy_dhw, 3),
+                "nrg": round(self.thermal_dhw, 3), "uptimecomp": round(self.runtime_dhw, 1),
+                "startshp": self.starts_dhw, "charging": mode == "dhw"
+            }
+        }
+        return {"boiler": boiler, "heatpump": boiler, "system": {"connected": True, "mode": "dummy"}}, {}

@@ -11,15 +11,16 @@ class EmsEspError(RuntimeError):
 class EmsEspClient:
     def __init__(self, config):
         self.base_url = config["base_url"].rstrip("/")
-        self.token = config.get("access_token", "").strip()
+        self.token = str(config.get("access_token", "")).strip()
         self.timeout = float(config.get("timeout_seconds", 5))
         self.verify_tls = bool(config.get("verify_tls", True))
         self.endpoints = config.get("endpoints", {})
+        self.minimum_successful_endpoints = int(config.get("minimum_successful_endpoints", 1))
 
     def _get_json(self, path):
         request = urllib.request.Request(
             self.base_url + path,
-            headers={"Accept": "application/json", "User-Agent": "venus-os-dbus-emsesp/0.4.0"},
+            headers={"Accept": "application/json", "User-Agent": "venus-os-dbus-emsesp/1.0"},
         )
         if self.token:
             request.add_header("Authorization", "Bearer " + self.token)
@@ -29,7 +30,12 @@ class EmsEspClient:
         try:
             with urllib.request.urlopen(request, timeout=self.timeout, context=context) as response:
                 charset = response.headers.get_content_charset() or "utf-8"
-                return json.loads(response.read().decode(charset))
+                payload = json.loads(response.read().decode(charset))
+                if not isinstance(payload, dict):
+                    raise EmsEspError("{} did not return a JSON object".format(path))
+                return payload
+        except EmsEspError:
+            raise
         except (urllib.error.URLError, urllib.error.HTTPError, ValueError) as exc:
             raise EmsEspError("GET {} failed: {}".format(path, exc)) from exc
 
@@ -40,6 +46,6 @@ class EmsEspClient:
                 data[name] = self._get_json(path)
             except EmsEspError as exc:
                 errors[name] = str(exc)
-        if not data:
-            raise EmsEspError("all EMS-ESP endpoints failed: {}".format(errors))
+        if len(data) < self.minimum_successful_endpoints:
+            raise EmsEspError("not enough REST endpoints succeeded: {}".format(errors))
         return data, errors

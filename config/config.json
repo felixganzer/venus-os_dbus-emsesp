@@ -1,12 +1,12 @@
 {
-  "mode": "dummy",
+  "mode": "rest_with_dummy_fallback",
   "ems_esp": {
     "base_url": "http://ems-esp.local",
     "access_token": "",
     "verify_tls": true,
     "timeout_seconds": 5,
     "poll_interval_seconds": 10,
-    "stale_after_seconds": 60,
+    "minimum_successful_endpoints": 1,
     "endpoints": {
       "boiler": "/api/boiler",
       "thermostat": "/api/thermostat",
@@ -14,172 +14,74 @@
       "system": "/api/system"
     }
   },
-  "simulation_control": {
-    "enabled_at_start": true
+  "fallback": {
+    "enabled": true,
+    "after_consecutive_failures": 1,
+    "rest_retry_seconds": 30
   },
+  "simulation_control": {"enabled_at_start": true},
+  "model": {"aux_heater_nominal_power_w": 9000},
   "dummy": {
-    "thermal_time_constant_seconds": 90,
-    "initial_flow_temperature_c": 28.0,
-    "initial_return_temperature_c": 26.0,
-    "initial_dhw_temperature_c": 48.0
+    "scenario_duration_seconds": 1800,
+    "start_time_offset_seconds": 0,
+    "power_variation_fraction": 0.18,
+    "variation_seed": 5800
   },
-  "telemetry_mapping": {
-    "outside_temperature_c": [
-      "heatpump.outdoortemp",
-      "boiler.outdoortemp"
-    ],
-    "flow_temperature_c": [
-      "heatpump.flowtemp",
-      "boiler.curflowtemp"
-    ],
-    "return_temperature_c": [
-      "heatpump.returntemp",
-      "boiler.returntemp"
-    ],
-    "dhw_temperature_c": [
-      "heatpump.dhwtemp",
-      "boiler.dhwtemp"
-    ],
-    "cop": [
-      "heatpump.cop",
-      "boiler.cop"
-    ],
-    "status_code": [
-      "heatpump.statuscode"
-    ]
-  },
-  "generic_input_defaults": {
-    "show_ui_input": 6,
-    "group": "Bosch 5800i Status"
-  },
-  "telemetry_display": {
-    "operating_status": {
-      "name": "Betriebsstatus",
-      "type": 0,
-      "labels": [
-        "Standby",
-        "Heizen",
-        "Warmwasser",
-        "Abtauen"
-      ]
-    },
-
-    "outside_temperature": {
-      "name": "Außentemperatur",
-      "type": 3,
-      "unit": "/Temperature",
-      "range_min": -25,
-      "range_max": 45,
-      "decimals": 1
-    },
-
-    "flow_temperature": {
-      "name": "Vorlauftemperatur",
-      "type": 3,
-      "unit": "/Temperature",
-      "range_min": 15,
-      "range_max": 70,
-      "decimals": 1
-    },
-
-    "return_temperature": {
-      "name": "Rücklauftemperatur",
-      "type": 3,
-      "unit": "/Temperature",
-      "range_min": 15,
-      "range_max": 70,
-      "decimals": 1
-    },
-
-    "dhw_temperature": {
-      "name": "Warmwasser",
-      "type": 3,
-      "unit": "/Temperature",
-      "range_min": 20,
-      "range_max": 70,
-      "decimals": 1
-    },
-
-    "cop": {
-      "name": "COP",
-      "type": 2,
-      "unit": "",
-      "range_min": 0,
-      "range_max": 6,
-      "decimals": 2
-    },
-
-    "compressor": {
-      "name": "Verdichter",
-      "type": 0,
-      "labels": [
-        "/off",
-        "/on"
-      ]
-    },
-
-    "aux_heater": {
-      "name": "Heizstab",
-      "type": 0,
-      "labels": [
-        "/off",
-        "/on"
-      ]
-    }
-  },
-  "electrical": {
-    "voltage_v": 230.0,
-    "position": 1
-  },
+  "electrical": {"voltage_v": 230.0, "position": 0},
   "devices": {
-    "heating": {
-      "service_name": "com.victronenergy.heatpump.emsesp_heating",
-      "device_instance": 280,
-      "custom_name": "Bosch 5800i Heizung",
-      "product_name": "EMS-ESP Raumheizung",
-      "product_id": 65535
-    },
-    "dhw": {
-      "service_name": "com.victronenergy.heatpump.emsesp_dhw",
-      "device_instance": 281,
-      "custom_name": "Bosch 5800i Warmwasser",
-      "product_name": "EMS-ESP Warmwasser",
-      "product_id": 65535
-    },
-    "aux_heater": {
-      "service_name": "com.victronenergy.heatpump.emsesp_aux",
-      "device_instance": 282,
-      "custom_name": "Bosch 5800i Heizstab",
-      "product_name": "EMS-ESP Heizstab",
-      "product_id": 65535
-    }
+    "heating": {"service_name":"com.victronenergy.heatpump.emsesp_heating","device_instance":280,"custom_name":"Bosch 5800i Heizung","product_name":"EMS-ESP Raumheizung","product_id":65535},
+    "dhw": {"service_name":"com.victronenergy.heatpump.emsesp_dhw","device_instance":281,"custom_name":"Bosch 5800i Warmwasser","product_name":"EMS-ESP Warmwasser","product_id":65535},
+    "aux_heater": {"service_name":"com.victronenergy.heatpump.emsesp_aux","device_instance":282,"custom_name":"Bosch 5800i Heizstab","product_name":"EMS-ESP Heizstab","product_id":65535}
   },
-  "source_mapping": {
-    "total_power_w": [
-      "heatpump.power",
-      "boiler.hppower"
-    ],
-    "operating_mode": [
-      "heatpump.status",
-      "boiler.status"
-    ],
-    "compressor_active": [
-      "heatpump.compressor",
-      "boiler.compressor"
-    ],
-    "aux_heater_power_w": [
-      "heatpump.auxheaterpower",
-      "boiler.auxheaterpower",
-      "boiler.eheaterpower"
-    ],
-    "aux_heater_active": [
-      "heatpump.auxheateractive",
-      "boiler.auxheateractive",
-      "boiler.eheateractive"
-    ]
+  "emsesp_mapping": {
+    "outside_temperature_c": ["boiler.outdoortemp","heatpump.outdoortemp"],
+    "flow_temperature_c": ["boiler.curflowtemp","boiler.hptc1","heatpump.curflowtemp"],
+    "return_temperature_c": ["boiler.rettemp","boiler.hptc0","heatpump.rettemp"],
+    "dhw_temperature_c": ["boiler.dhw.curtemp2","boiler.dhw.curtemp","boiler.hptw1"],
+    "target_flow_temperature_c": ["thermostat.hc1.targetflowtemp","boiler.selflowtemp"],
+    "system_pressure_bar": ["boiler.syspress"],
+    "primary_flow_l_h": ["boiler.pc0flow"],
+    "activity": ["boiler.hpactivity","heatpump.hpactivity"],
+    "heating_active": ["boiler.heatingactive"],
+    "dhw_active": ["boiler.tapwateractive","boiler.dhw.charging"],
+    "compressor_active": ["boiler.hpcompon","heatpump.hpcompon"],
+    "compressor_speed_percent": ["boiler.hpcompspd","boiler.curburnpow"],
+    "aux_heater_level_percent": ["boiler.auxheaterlevel"],
+    "aux_heater_active": ["boiler.elheatstep1","boiler.elheatstep2","boiler.elheatstep3"],
+    "compressor_electrical_power_w": ["boiler.hpcurrpower","heatpump.hpcurrpower"],
+    "aux_heater_power_w": ["boiler.auxheaterpower"],
+    "thermal_power_kw": ["boiler.hppower","heatpump.hppower"],
+    "cop": ["boiler.cop","heatpump.cop"],
+    "electrical_energy_total_kwh": ["boiler.metertotal","boiler.nrgconstotal"],
+    "electrical_energy_compressor_kwh": ["boiler.metercomp","boiler.nrgconscomptotal"],
+    "electrical_energy_aux_heater_kwh": ["boiler.metereheat","boiler.auxelecheatnrgconstotal"],
+    "electrical_energy_heating_kwh": ["boiler.meterheat","boiler.nrgconscompheating"],
+    "electrical_energy_dhw_kwh": ["boiler.dhw.meter","boiler.dhw.nrgconscomp"],
+    "electrical_energy_cooling_kwh": ["boiler.metercool","boiler.nrgconscompcooling"],
+    "thermal_energy_total_kwh": ["boiler.nrgtotal","boiler.nrgsupptotal"],
+    "thermal_energy_heating_kwh": ["boiler.nrgheat","boiler.nrgsuppheating"],
+    "thermal_energy_dhw_kwh": ["boiler.dhw.nrg","boiler.dhw.nrgsupp"],
+    "thermal_energy_cooling_kwh": ["boiler.nrgcool","boiler.nrgsuppcooling"],
+    "runtime_total_minutes": ["boiler.uptimetotal"],
+    "runtime_active_minutes": ["boiler.uptimecontrol"],
+    "runtime_heating_minutes": ["boiler.uptimecompheating"],
+    "runtime_dhw_minutes": ["boiler.dhw.uptimecomp"],
+    "runtime_cooling_minutes": ["boiler.uptimecompcooling"],
+    "compressor_starts_total": ["boiler.totalcompstarts"],
+    "compressor_starts_heating": ["boiler.heatingstarts"],
+    "compressor_starts_dhw": ["boiler.dhw.startshp"],
+    "compressor_starts_cooling": ["boiler.coolingstarts"]
   },
-  "counters": {
-    "state_file": "/data/venus-os_dbus-emsesp/state/counters.json",
-    "save_interval_seconds": 60
-  }
+  "generic_input_defaults": {"show_ui_input":6,"group":"Bosch 5800i Status"},
+  "telemetry_display": {
+    "operating_status":{"name":"Betriebsstatus","type":0,"labels":["Standby","Heizen","Warmwasser","Abtauen","Kühlen"]},
+    "outside_temperature":{"name":"Außentemperatur","type":3,"unit":"/Temperature","range_min":-25,"range_max":45,"decimals":1},
+    "flow_temperature":{"name":"Vorlauftemperatur","type":3,"unit":"/Temperature","range_min":0,"range_max":70,"decimals":1},
+    "return_temperature":{"name":"Rücklauftemperatur","type":3,"unit":"/Temperature","range_min":0,"range_max":70,"decimals":1},
+    "dhw_temperature":{"name":"Warmwasser","type":3,"unit":"/Temperature","range_min":0,"range_max":70,"decimals":1},
+    "cop":{"name":"COP","type":2,"unit":"","range_min":0,"range_max":6,"decimals":2},
+    "compressor":{"name":"Verdichter","type":0,"labels":["/off","/on"]},
+    "aux_heater":{"name":"Heizstab","type":0,"labels":["/off","/on"]}
+  },
+  "counters":{"state_file":"/data/venus-os_dbus-emsesp/state/counters.json","save_interval_seconds":60}
 }
