@@ -89,6 +89,34 @@ class Application:
     def _distribution(self, state):
         return self.distributor.distribute(state.total_electrical_power_w, state.mode, state.aux_heater_power_w, state.aux_heater_active)
 
+    @staticmethod
+    def _device_state(category, state):
+        if category == "heating":
+            if state.mode == "cooling":
+                return 4
+            if state.mode == "defrost":
+                return 2
+            if state.heating_active or state.mode == "heating":
+                return 3
+            return 0
+        if category == "dhw":
+            if state.mode == "dhw" and (state.dhw_active or state.mode == "dhw"):
+                return 3
+            return 0
+        if category == "aux_heater":
+            if state.aux_heater_active or state.aux_heater_power_w > 0.0:
+                return 3
+            return 0
+        return 0
+
+    @staticmethod
+    def _device_temperatures(category, state):
+        if category == "heating":
+            return state.flow_temperature_c, state.target_flow_temperature_c
+        if category == "dhw":
+            return state.dhw_temperature_c, state.dhw_target_temperature_c
+        return None, None
+
     def _publish(self, state):
         distribution = self._distribution(state)
         tracked = self.tracker.update(distribution)
@@ -108,7 +136,17 @@ class Application:
                 values["energy_total_kwh"] = direct_totals[category]
             if runtime_minutes[category] is not None:
                 values["runtime_total_seconds"] = int(runtime_minutes[category] * 60)
-            self.services[category].update(values, True, state.mode, 0)
+            temperature, target_temperature = self._device_temperatures(category, state)
+            state_value = self._device_state(category, state)
+            self.services[category].update(
+                values,
+                True,
+                state.mode,
+                0,
+                temperature=temperature,
+                target_temperature=target_temperature,
+                state_value=state_value,
+            )
         self.services["heating"].update_telemetry({
             "status_code": state.status_code,
             "outside_temperature_c": state.outside_temperature_c,

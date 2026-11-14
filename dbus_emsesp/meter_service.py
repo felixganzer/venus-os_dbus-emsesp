@@ -105,6 +105,9 @@ class HeatPumpMeterService:
         add("/Energy/Today", 0.0, gettextcallback=fmt("kWh", 3))
         add("/Runtime/Today", 0, gettextcallback=fmt("s", 0))
         add("/Runtime/Total", 0, gettextcallback=fmt("s", 0))
+        add("/State", 0)
+        add("/Temperature", None)
+        add("/TargetTemperature", None)
         add("/Position", int(electrical.get("position", 0)))
         add("/NrOfPhases", 3)
         add("/DeviceType", 0)
@@ -235,7 +238,22 @@ class HeatPumpMeterService:
                 value = int(bool(value))
             self.service[path] = value
 
-    def update(self, values, connected, mode, error_code=0):
+    @staticmethod
+    def _set_optional_float(service, path, value):
+        if value is None or value == "":
+            service[path] = None
+            return
+        try:
+            numeric = float(value)
+        except (TypeError, ValueError):
+            service[path] = None
+            return
+        if numeric != numeric or numeric in (float("inf"), float("-inf")):
+            service[path] = None
+            return
+        service[path] = numeric
+
+    def update(self, values, connected, mode, error_code=0, temperature=None, target_temperature=None, state_value=0):
         total_power = max(0.0, float(values["power_w"] or 0.0))
         total_energy = max(0.0, float(values["energy_total_kwh"] or 0.0))
         phase_power = total_power / 3.0
@@ -250,6 +268,12 @@ class HeatPumpMeterService:
             self.service[base + "Power"] = phase_power
             self.service[base + "Current"] = phase_current
             self.service[base + "Energy/Forward"] = phase_energy
+
+        self.service["/State"] = int(state_value)
+        self.service["/Temperature"] = temperature
+        self.service["/TargetTemperature"] = target_temperature
+        self._set_optional_float(self.service, "/Temperature", temperature)
+        self._set_optional_float(self.service, "/TargetTemperature", target_temperature)
 
         self.service["/Energy/Today"] = values["energy_today_kwh"]
         self.service["/Runtime/Today"] = values["runtime_today_seconds"]

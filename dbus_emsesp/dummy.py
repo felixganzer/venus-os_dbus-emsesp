@@ -68,6 +68,9 @@ class DummyEmsEspClient:
             flow_target, ret_target, dhw_target = 23.5, 27.0, 48.0
         else:
             flow_target, ret_target, dhw_target = 26.0, 25.0, 47.0
+        flow_target = round(flow_target, 1)
+        ret_target = round(ret_target, 1)
+        dhw_target = round(dhw_target, 1)
         self.flow = self._approach(self.flow, flow_target, dt, 90.0)
         self.ret = self._approach(self.ret, ret_target, dt, 105.0)
         self.dhw = self._approach(self.dhw, dhw_target, dt, 225.0)
@@ -98,14 +101,14 @@ class DummyEmsEspClient:
         boiler = {
             "outdoortemp": round(outside, 1), "curflowtemp": round(self.flow, 1),
             "rettemp": round(self.ret, 1), "hptc0": round(self.ret, 1),
-            "hptc1": round(self.flow, 1), "hpcurrpower": round(comp, 1),
-            "hppower": round(thermal_w / 1000.0, 2), "hpcompon": comp_on,
-            "hpactivity": activity, "heatingactive": mode == "heating",
+            "hptc1": round(self.flow, 1), "selflowtemp": flow_target,
+            "wwseltemp": dhw_target, "dhwseltemp": dhw_target,
+            "hpcurrpower": round(comp, 1), "hppower": round(thermal_w / 1000.0, 2),
+            "hpcompon": comp_on, "hpactivity": activity, "heatingactive": mode == "heating",
             "tapwateractive": mode == "dhw", "hpcompspd": round(min(100.0, comp / 30.0), 1),
             "auxheaterlevel": round(aux / 90.0, 1), "auxheaterpower": round(aux, 1),
             "auxheateractive": aux_active, "elheatstep1": aux_active, "elheatstep2": False, "elheatstep3": False,
-            "syspress": 1.7,
-            "pc0flow": 850 if comp_on else 0,
+            "syspress": 1.7, "pc0flow": 850 if comp_on else 0,
             "metertotal": round(self.energy_heat + self.energy_dhw + self.energy_aux, 3),
             "metercomp": round(self.energy_heat + self.energy_dhw, 3),
             "metereheat": round(self.energy_aux, 3), "meterheat": round(self.energy_heat, 3),
@@ -116,7 +119,8 @@ class DummyEmsEspClient:
             "uptimecompheating": round(self.runtime_heat, 1),
             "totalcompstarts": self.starts_total, "heatingstarts": self.starts_heat,
             "dhw": {
-                "curtemp2": round(self.dhw, 1), "meter": round(self.energy_dhw, 3),
+                "curtemp2": round(self.dhw, 1), "curtemp": round(self.dhw, 1),
+                "seltemp": dhw_target, "target_temp": dhw_target, "meter": round(self.energy_dhw, 3),
                 "nrg": round(self.thermal_dhw, 3), "uptimecomp": round(self.runtime_dhw, 1),
                 "startshp": self.starts_dhw, "charging": mode == "dhw"
             }

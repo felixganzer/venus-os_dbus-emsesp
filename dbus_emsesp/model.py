@@ -83,6 +83,7 @@ class HeatPumpState:
     return_temperature_c: Optional[float] = None
     dhw_temperature_c: Optional[float] = None
     target_flow_temperature_c: Optional[float] = None
+    dhw_target_temperature_c: Optional[float] = None
     system_pressure_bar: Optional[float] = None
     primary_flow_l_h: Optional[float] = None
 
@@ -184,6 +185,7 @@ class EmsEspModelMapper:
             return_temperature_c=n("return_temperature_c"),
             dhw_temperature_c=n("dhw_temperature_c"),
             target_flow_temperature_c=n("target_flow_temperature_c"),
+            dhw_target_temperature_c=n("dhw_target_temperature_c"),
             system_pressure_bar=n("system_pressure_bar"),
             primary_flow_l_h=n("primary_flow_l_h"),
             compressor_active=compressor_active,
