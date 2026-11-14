@@ -94,6 +94,7 @@ class DummyEmsEspClient:
         self.last_mode = mode
 
         activity = {"heating":"heating", "dhw":"dhw", "defrost":"defrost", "standby":"none"}[mode]
+        aux_active = aux > 0.0
         boiler = {
             "outdoortemp": round(outside, 1), "curflowtemp": round(self.flow, 1),
             "rettemp": round(self.ret, 1), "hptc0": round(self.ret, 1),
@@ -101,7 +102,9 @@ class DummyEmsEspClient:
             "hppower": round(thermal_w / 1000.0, 2), "hpcompon": comp_on,
             "hpactivity": activity, "heatingactive": mode == "heating",
             "tapwateractive": mode == "dhw", "hpcompspd": round(min(100.0, comp / 30.0), 1),
-            "auxheaterlevel": round(aux / 90.0, 1), "syspress": 1.7,
+            "auxheaterlevel": round(aux / 90.0, 1), "auxheaterpower": round(aux, 1),
+            "auxheateractive": aux_active, "elheatstep1": aux_active, "elheatstep2": False, "elheatstep3": False,
+            "syspress": 1.7,
             "pc0flow": 850 if comp_on else 0,
             "metertotal": round(self.energy_heat + self.energy_dhw + self.energy_aux, 3),
             "metercomp": round(self.energy_heat + self.energy_dhw, 3),
@@ -118,4 +121,10 @@ class DummyEmsEspClient:
                 "startshp": self.starts_dhw, "charging": mode == "dhw"
             }
         }
-        return {"boiler": boiler, "heatpump": boiler, "system": {"connected": True, "mode": "dummy"}}, {}
+        heatpump = dict(boiler)
+        heatpump["power"] = round(comp + aux, 1)
+        heatpump["status"] = mode
+        heatpump["compressor"] = comp_on
+        heatpump["auxheaterpower"] = round(aux, 1)
+        heatpump["auxheateractive"] = aux_active
+        return {"boiler": boiler, "heatpump": heatpump, "system": {"connected": True, "mode": "dummy"}}, {}

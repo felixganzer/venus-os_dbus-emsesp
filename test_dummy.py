@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 import json
 import sys
-import time
 from pathlib import Path
 
 PROJECT_DIR = Path(__file__).resolve().parent
@@ -10,17 +9,13 @@ sys.path.insert(0, str(PROJECT_DIR / "dbus_emsesp"))
 from dummy import DummyEmsEspClient
 
 
-def main():
-    config = json.loads((PROJECT_DIR / "config" / "config.json").read_text())
+def test_dummy_reader_returns_expected_sections():
+    config = json.loads((PROJECT_DIR / "config" / "config.json").read_text(encoding="utf-8"))
     client = DummyEmsEspClient(config.get("dummy", {}))
-    print("Dummy-Modus läuft. Abbruch mit Strg+C.")
-    while True:
-        data, errors = client.read_all()
-        print(json.dumps(data, indent=2, ensure_ascii=False))
-        if errors:
-            print("Fehler:", errors)
-        time.sleep(5)
+    data, errors = client.read_all()
 
-
-if __name__ == "__main__":
-    main()
+    assert isinstance(data, dict)
+    assert "boiler" in data
+    assert "heatpump" in data
+    assert "system" in data
+    assert isinstance(errors, dict)

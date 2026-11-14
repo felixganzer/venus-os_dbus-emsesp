@@ -1,8 +1,15 @@
 import json
 import os
 
-import dbus
-from vedbus import VeDbusService
+try:
+    import dbus
+except ImportError:  # pragma: no cover - runtime dependency only on Venus OS
+    dbus = None
+
+try:
+    from vedbus import VeDbusService
+except ImportError:  # pragma: no cover - runtime dependency only on Venus OS
+    VeDbusService = None
 
 
 PHASES = ("L1", "L2", "L3")
@@ -44,6 +51,8 @@ class HeatPumpMeterService:
         generic_input_defaults=None,
         telemetry_display=None,
     ):
+        if dbus is None or VeDbusService is None:
+            raise RuntimeError("dbus and vedbus are required for runtime service publication on Venus OS")
         self.category = category
         self.voltage = float(electrical.get("voltage_v", 230.0))
         self.update_index = 0

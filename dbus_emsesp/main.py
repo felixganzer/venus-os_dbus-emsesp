@@ -4,21 +4,41 @@ import logging
 import os
 import sys
 from pathlib import Path
-from dbus.mainloop.glib import DBusGMainLoop
-from gi.repository import GLib
+
+try:
+    from dbus.mainloop.glib import DBusGMainLoop
+except ImportError:  # pragma: no cover - runtime dependency only on Venus OS
+    DBusGMainLoop = None
+
+try:
+    from gi.repository import GLib
+except ImportError:  # pragma: no cover - runtime dependency only on Venus OS
+    GLib = None
 
 APP_DIR = Path(__file__).resolve().parents[1]
 for candidate in (APP_DIR / "lib" / "velib_python", Path("/opt/victronenergy/dbus-systemcalc-py/ext/velib_python"), Path("/opt/victronenergy/velib_python"), Path("/data/velib_python")):
     if (candidate / "vedbus.py").exists():
         sys.path.insert(0, str(candidate)); break
 
-from distributor import PowerDistributor
-from dummy import DummyEmsEspClient
-from emsesp import EmsEspClient, EmsEspError
-from energy import ThreeDeviceEnergyTracker
-from meter_service import HeatPumpMeterService
-from model import EmsEspModelMapper
-from source import RestWithDummyFallback
+if str(APP_DIR / "dbus_emsesp") not in sys.path:
+    sys.path.insert(0, str(APP_DIR / "dbus_emsesp"))
+
+try:
+    from dbus_emsesp.distributor import PowerDistributor
+    from dbus_emsesp.dummy import DummyEmsEspClient
+    from dbus_emsesp.emsesp import EmsEspClient, EmsEspError
+    from dbus_emsesp.energy import ThreeDeviceEnergyTracker
+    from dbus_emsesp.meter_service import HeatPumpMeterService
+    from dbus_emsesp.model import EmsEspModelMapper
+    from dbus_emsesp.source import RestWithDummyFallback
+except ImportError:
+    from distributor import PowerDistributor
+    from dummy import DummyEmsEspClient
+    from emsesp import EmsEspClient, EmsEspError
+    from energy import ThreeDeviceEnergyTracker
+    from meter_service import HeatPumpMeterService
+    from model import EmsEspModelMapper
+    from source import RestWithDummyFallback
 
 VERSION = "1.0.0"
 LOG = logging.getLogger("dbus-emsesp")
@@ -114,13 +134,73 @@ class Application:
         self.poll(); GLib.timeout_add_seconds(self.poll_interval, self.poll); GLib.MainLoop().run()
 
 
+def validate_config(config):
+    if not isinstance(config, dict):
+        raise ValueError("Configuration must be a JSON object")
+
+    mode = str(config.get("mode", "rest_with_dummy_fallback")).lower()
+    allowed_modes = {"dummy", "rest", "rest_with_dummy_fallback"}
+    if mode not in allowed_modes:
+        raise ValueError("Unsupported mode '{}'; allowed modes are {}".format(mode, sorted(allowed_modes)))
+
+    devices = config.get("devices")
+    if not isinstance(devices, dict):
+        raise ValueError("config.devices must be defined")
+
+    required_device_fields = ("service_name", "device_instance", "custom_name", "product_name", "product_id")
+    for category in CATEGORIES:
+        if category not in devices:
+            raise ValueError("Missing device config for {}".format(category))
+        device_cfg = devices[category]
+        if not isinstance(device_cfg, dict):
+            raise ValueError("config.devices.{} must be an object".format(category))
+        missing = [field for field in required_device_fields if field not in device_cfg]
+        if missing:
+            raise ValueError("config.devices.{}.{} is missing required field(s): {}".format(category, category, ", ".join(missing)))
+
+    electrical = config.get("electrical")
+    if not isinstance(electrical, dict):
+        raise ValueError("config.electrical must be defined")
+    voltage = electrical.get("voltage_v", 230.0)
+    try:
+        voltage_value = float(voltage)
+    except (TypeError, ValueError):
+        raise ValueError("config.electrical.voltage_v must be numeric")
+    if voltage_value <= 0:
+        raise ValueError("config.electrical.voltage_v must be positive")
+
+    ems_esp = config.get("ems_esp")
+    if not isinstance(ems_esp, dict):
+        raise ValueError("config.ems_esp must be defined")
+    endpoints = ems_esp.get("endpoints")
+    if not isinstance(endpoints, dict) or not endpoints:
+        raise ValueError("config.ems_esp.endpoints must contain at least one API endpoint")
+    base_url = ems_esp.get("base_url")
+    if not isinstance(base_url, str) or not base_url.strip():
+        raise ValueError("config.ems_esp.base_url must be a non-empty string")
+
+    fallback = config.get("fallback")
+    if fallback is not None and not isinstance(fallback, dict):
+        raise ValueError("config.fallback must be an object when defined")
+
+    return config
+
+
 def load_config():
     path = Path(os.environ.get("EMS_ESP_CONFIG", APP_DIR / "config" / "config.json"))
-    with path.open("r", encoding="utf-8") as handle: return json.load(handle)
+    with path.open("r", encoding="utf-8") as handle:
+        config = json.load(handle)
+    return validate_config(config)
 
 
 def main():
     logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"), format="%(asctime)s %(levelname)s %(message)s")
-    DBusGMainLoop(set_as_default=True); Application(load_config()).run()
+    if DBusGMainLoop is None or GLib is None:
+        raise SystemExit(
+            "Missing Venus OS runtime dependencies: dbus and gi/GLib are required for service startup. "
+            "Run this project on a Venus OS host or use the project in a test environment that provides those modules."
+        )
+    DBusGMainLoop(set_as_default=True)
+    Application(load_config()).run()
 
 if __name__ == "__main__": main()

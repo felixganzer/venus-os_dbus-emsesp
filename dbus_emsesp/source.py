@@ -20,6 +20,16 @@ class RestWithDummyFallback:
         self.last_rest_attempt = 0.0
         self.using_fallback = False
 
+    def status(self):
+        return "fallback" if self.using_fallback else "rest"
+
+    def _activate_fallback(self, exc):
+        self.failures += 1
+        LOG.warning("REST read failed (%d): %s", self.failures, exc)
+        if not self.enabled or self.failures < self.after_failures:
+            raise EmsEspError("REST read failed: {}".format(exc)) from exc
+        self.using_fallback = True
+
     def read_state(self):
         now = self.clock()
         may_try_rest = not self.using_fallback or now - self.last_rest_attempt >= self.retry_seconds
@@ -31,11 +41,9 @@ class RestWithDummyFallback:
                 self.using_fallback = False
                 return self.mapper.map(raw, source="rest"), errors
             except EmsEspError as exc:
-                self.failures += 1
-                LOG.warning("REST read failed (%d): %s", self.failures, exc)
-                if not self.enabled or self.failures < self.after_failures:
-                    raise
-                self.using_fallback = True
+                self._activate_fallback(exc)
+            except Exception as exc:
+                self._activate_fallback(exc)
 
         raw, errors = self.dummy.read_all()
         errors = dict(errors)
